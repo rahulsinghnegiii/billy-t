@@ -1,0 +1,55 @@
+{
+  "name": "client",
+  "private": true,
+  "version": "0.0.5",
+  "scripts": {
+    "start": "npm run server | vite ",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "server" : "node ./server/app.js",
+    "deploy": "yarn build && npx thirdweb@latest upload dist"
+  },
+  "dependencies": {
+    "@react-firebase/auth": "^0.2.10",
+    "@thirdweb-dev/react": "^4",
+    "@thirdweb-dev/sdk": "^4",
+    "@vitejs/plugin-react-swc": "^3.10.2",
+    "axios": "^1.6.2",
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.2",
+    "bootstrap": "^5.3.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "drei": "^2.2.21",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.1",
+    "mui": "^0.0.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemon": "^3.0.1",
+    "ethers": "^5",
+    "lucide-react": "^0.483.0",
+    "react": "^18.2",
+    "react-dom": "^18.2",
+    "react-firebase-hooks": "^5.1.1",
+    "react-router-dom": "^6.22.2",
+    "request": "^2.88.2",
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2",
+    "sonner": "^1.4.3",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.9",
+    "@types/react-dom": "^18.0.5",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^4.7.2",
+    "vite": "^5.4.1"
+  },
+  "engines": {
+    "node": ">18"
+  }
+}
