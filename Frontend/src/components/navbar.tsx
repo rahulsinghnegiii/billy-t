@@ -4,13 +4,13 @@ import { menu, search, thirdweb } from "../assets"
 import { CustomButton } from "./customButton"
 import { navlinks } from "../constants"
 import { StateContext } from "../contexts"
-import { metamaskWallet } from "@thirdweb-dev/react"
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 export function Navbar() {
     const navigate = useNavigate()
     const [isActive, setIsActive] = useState("dashboard")
     const [toggleDrawer, setToggleDrawer] = useState(false)
-    const { address, connect, searchCampaign, setSearchCampaign } = useContext(StateContext)
+    const { address, searchCampaign, setSearchCampaign } = useContext(StateContext)
 
     return (
         <nav className="w-full bg-white shadow-sm py-4 px-6">
@@ -33,14 +33,14 @@ export function Navbar() {
 
                 {/* Desktop Navigation */}
                 <div className="hidden md:flex items-center space-x-4">
-                    <CustomButton
-                        btnType="button"
-                        title={address ? 'Create Campaign' : 'Connect Wallet'}
-                        handleClick={() => {
-                            if (address) navigate('create-campaign')
-                            else connect(metamaskWallet())
-                        }}
-                    />
+                    {address && (
+                        <CustomButton
+                            btnType="button"
+                            title="Create Campaign"
+                            handleClick={() => navigate('create-campaign')}
+                        />
+                    )}
+                    <ConnectButton />
                     <Link to="/profile">
                         <div className="w-10 h-10 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center hover:bg-gray-50 transition-colors">
                             <img src={thirdweb} alt="profile" className="w-6 h-6" />
@@ -82,14 +82,15 @@ export function Navbar() {
                             ))}
                         </div>
                         <div className="mt-6">
-                            <CustomButton
-                                btnType="button"
-                                title={address ? 'Create Campaign' : 'Connect Wallet'}
-                                handleClick={() => {
-                                    if (address) navigate('create-campaign')
-                                    else connect(metamaskWallet())
-                                }}
-                            />
+                            {address ? (
+                                <CustomButton
+                                    btnType="button"
+                                    title="Create Campaign"
+                                    handleClick={() => navigate('create-campaign')}
+                                />
+                            ) : (
+                                <ConnectButton />
+                            )}
                         </div>
                     </div>
                 </div>

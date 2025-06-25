@@ -7,12 +7,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "server" : "node ./server/app.js",
-    "deploy": "yarn build && npx thirdweb@latest upload dist"
+    "deploy": "yarn build"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^1.3.0",
     "@react-firebase/auth": "^0.2.10",
-    "@thirdweb-dev/react": "^4",
-    "@thirdweb-dev/sdk": "^4",
     "@vitejs/plugin-react-swc": "^3.10.2",
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
@@ -28,7 +27,6 @@
     "mui": "^0.0.1",
     "multer": "^1.4.5-lts.1",
     "nodemon": "^3.0.1",
-    "ethers": "^5",
     "lucide-react": "^0.483.0",
     "react": "^18.2",
     "react-dom": "^18.2",
@@ -38,7 +36,9 @@
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
     "sonner": "^1.4.3",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "viem": "^1.19.9",
+    "wagmi": "^1.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.0.9",

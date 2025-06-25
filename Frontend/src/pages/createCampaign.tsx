@@ -2,7 +2,6 @@ import { ChangeEvent, FormEvent, useContext, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { FormField } from "../components/formField"
 import { CustomButton } from "../components/customButton"
-import { ethers } from "ethers"
 import { checkIfImage } from "../utils"
 import { toast } from "sonner"
 import { StateContext } from "../contexts"
@@ -31,9 +30,16 @@ export function CreateCampaign() {
         checkIfImage(form.image, async (exists) => {
             if (exists) {
                 setIsLoading(true)
-                await createCampaign({ ...form, target: ethers.utils.parseUnits(form.target, 18) })
-                setIsLoading(false)
-                navigate('/admin')
+                try {
+                    await createCampaign(form)
+                    toast.success("Campaign created successfully!")
+                    navigate('/admin')
+                } catch (error) {
+                    console.error("Error creating campaign:", error)
+                    toast.error("Failed to create campaign")
+                } finally {
+                    setIsLoading(false)
+                }
             } else {
                 toast.error("Provide valid image URL")
                 setForm({ ...form, image: '' })

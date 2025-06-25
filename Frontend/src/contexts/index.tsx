@@ -1,13 +1,15 @@
-import { SmartContract, useAddress, useConnect, useContract, useContractWrite, useDisconnect } from "@thirdweb-dev/react";
-import { BaseContract, BigNumber, ethers } from "ethers";
+import { useAccount, useConnect, useDisconnect, useContractRead, useContractWrite, useWaitForTransaction } from "wagmi";
+import { parseEther, formatEther } from "viem";
 import { ReactNode, SetStateAction, createContext, useEffect, useState } from "react";
+import { contractAbi } from "../constants";
+import { usePublicClient } from "wagmi";
+
 // Define campaign status enum to match contract
 enum CampaignStatus {
   Pending = 0,
   Approved = 1,
   Rejected = 2
 }
-
 
 type ParsedCampaign = {
     owner: string
@@ -29,9 +31,9 @@ type ParsedDonation = {
 
 export type StateContextType = {
     address: string | undefined
-    contract: SmartContract<BaseContract> | undefined
-    connect: any
-    disconnect: () => Promise<void>
+    contract: string
+    connect: () => void
+    disconnect: () => void
     createCampaign: (form: CampaignForm) => Promise<void>
     getCampaigns: () => Promise<ParsedCampaign[]>
     getApprovedCampaigns: () => Promise<ParsedCampaign[]>
@@ -44,7 +46,8 @@ export type StateContextType = {
     getPendingCampaigns: () => Promise<ParsedCampaign[]>
     approveCampaign: (id: string) => Promise<void>
     rejectCampaign: (id: string, reason: string) => Promise<void>
-    refreshCampaigns: () => Promise<void> // Added this function
+    refreshCampaigns: () => Promise<void>
+    isConnected: boolean
 }
 
 export const StateContext = createContext({} as StateContextType)
@@ -57,21 +60,47 @@ type CampaignForm = {
     name: string
     title: string
     description: string
-    target: BigNumber
+    target: string
     deadline: string
     image: string
 }
 
+// Contract address
+const CONTRACT_ADDRESS = "0x019f55905515e0c9cc4b34ab926028d881c1a31a";
+
 export function StateContextProvider({ children }: StateContextProviderProps) {
-    const { contract } = useContract("0x019f55905515e0c9cc4b34ab926028d881c1a31a")
+    // Wagmi hooks
+    const { address, isConnected } = useAccount();
+    const { connect: wagmiConnect } = useConnect();
+    const { disconnect: wagmiDisconnect } = useDisconnect();
+    const publicClient = usePublicClient();
+    
+    // Contract write functions
+    const { writeAsync: createCampaignWrite } = useContractWrite({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: contractAbi,
+        functionName: 'createCampaign',
+    });
 
+    const { writeAsync: donateToCampaignWrite } = useContractWrite({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: contractAbi,
+        functionName: 'donateToCampaign',
+    });
 
-    const { mutateAsync: createCampaign } = useContractWrite(contract, 'createCampaign')
+    const { writeAsync: approveCampaignWrite } = useContractWrite({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: contractAbi,
+        functionName: 'approveCampaign',
+    });
+
+    const { writeAsync: rejectCampaignWrite } = useContractWrite({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: contractAbi,
+        functionName: 'rejectCampaign',
+    });
 
     const [isAdmin, setIsAdmin] = useState(false);
-    const address = useAddress()
-    const connect = useConnect()
-    const disconnect = useDisconnect()
     
     // Add state to store campaigns and refresh timestamp
     const [allCampaignsCache, setAllCampaignsCache] = useState<ParsedCampaign[]>([]);
@@ -80,14 +109,26 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     // Admin features
     useEffect(() => {
         const checkAdminStatus = async () => {
-          if (contract && address) {
-            const adminRole = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("ADMIN_ROLE"));
-            const hasRole = await contract.call("hasRole", [adminRole, address]);
-            setIsAdmin(hasRole);
-          }
+            if (address) {
+                try {
+                    const adminRole = await publicClient.readContract({
+                        address: CONTRACT_ADDRESS as `0x${string}`,
+                        abi: contractAbi,
+                        functionName: "hasRole",
+                        args: ["0x41444d494e5f524f4c45000000000000000000000000000000000000000000", address],
+                    });
+                    setIsAdmin(!!adminRole);
+                } catch (error) {
+                    console.error("Error checking admin status:", error);
+                    setIsAdmin(false);
+                }
+            }
         };
-        checkAdminStatus();
-    }, [address, contract]);
+        
+        if (address) {
+            checkAdminStatus();
+        }
+    }, [address, publicClient]);
 
     // Helper function to parse campaign status 
     const getCampaignStatusString = (statusCode: number): string => {
@@ -100,21 +141,28 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     };
 
     const refreshCampaigns = async () => {
-        if (!contract) return [];
         try {
-            const rawCampaigns = await contract.call('getCampaigns');
-            const parsedCampaigns = rawCampaigns.map((campaign: any[], id: number) => ({
+            const rawCampaigns = await publicClient.readContract({
+                address: CONTRACT_ADDRESS as `0x${string}`,
+                abi: contractAbi,
+                functionName: "getCampaigns",
+            });
+            
+            if (!Array.isArray(rawCampaigns)) return [];
+            
+            const parsedCampaigns = (rawCampaigns as any[]).map((campaign: any[], id: number) => ({
                 owner: campaign[0],
                 title: campaign[1],
                 description: campaign[2],
-                target: ethers.utils.formatEther(campaign[3].toString()),
+                target: formatEther(campaign[3]),
                 deadline: Number(campaign[4]),
-                amountCollected: ethers.utils.formatEther(campaign[5].toString()),
+                amountCollected: formatEther(campaign[5]),
                 image: campaign[6],
                 status: campaign[9].toString(),
                 rejectionReason: campaign[10] || "",
                 pId: id.toString()
             }));
+            
             setAllCampaignsCache(parsedCampaigns);
             setLastRefresh(Date.now());
             return parsedCampaigns;
@@ -173,18 +221,18 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     const approveCampaign = async (id: string) => {
         try {
             console.log("Approving campaign ID:", id);
-            const txn = await contract?.call("approveCampaign", [id], {
-                gasLimit: 500000 // Adding explicit gas limit
+            const tx = await approveCampaignWrite({
+                args: [id],
             });
             
-            // Wait for transaction confirmation
-            await txn.receipt;
-            console.log("Campaign approved successfully:", txn);
+            await publicClient.waitForTransactionReceipt({
+                hash: tx.hash,
+            });
+            
+            console.log("Campaign approved successfully");
             
             // Force refresh campaigns after approval
             await refreshCampaigns();
-            
-            return txn;
         } catch (error) {
             console.error("Error approving campaign:", error);
             throw error;
@@ -194,18 +242,18 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     const rejectCampaign = async (id: string, reason: string) => {
         try {
             console.log("Rejecting campaign ID:", id, "Reason:", reason);
-            const txn = await contract?.call("rejectCampaign", [id, reason], {
-                gasLimit: 500000 // Adding explicit gas limit
+            const tx = await rejectCampaignWrite({
+                args: [id, reason],
             });
             
-            // Wait for transaction confirmation
-            await txn.receipt;
-            console.log("Campaign rejected successfully:", txn);
+            await publicClient.waitForTransactionReceipt({
+                hash: tx.hash,
+            });
+            
+            console.log("Campaign rejected successfully");
             
             // Force refresh campaigns after rejection
             await refreshCampaigns();
-            
-            return txn;
         } catch (error) {
             console.error("Error rejecting campaign:", error);
             throw error;
@@ -214,10 +262,6 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
 
     const publishCampaign = async (form: CampaignForm): Promise<void> => {
         try {
-            // Ensure target is properly formatted as BigNumber
-            console.log("Target value:", form.target.toString());
-            console.log("Target type:", typeof form.target);
-            
             // Convert deadline properly
             const deadlineTimestamp = Math.floor(new Date(form.deadline).getTime() / 1000);
             console.log("Deadline string:", form.deadline);
@@ -228,28 +272,29 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
                 owner: address,
                 title: form.title,
                 description: form.description,
-                target: form.target.toString(),
+                target: form.target,
                 deadline: deadlineTimestamp,
                 image: form.image
             });
             
-            const tx = await createCampaign({
+            const tx = await createCampaignWrite({
                 args: [
                     address,
                     form.title,
                     form.description,
-                    form.target,  // This should be a BigNumber already
-                    deadlineTimestamp,
+                    parseEther(form.target),
+                    BigInt(deadlineTimestamp),
                     form.image
                 ],
-                overrides: {
-                    gasLimit: 800000  // Increase gas limit for Arbitrum
-                }
             });
     
             console.log("Transaction sent:", tx);
-            const receipt = await tx.receipt;
-            console.log("Receipt:", receipt);
+            
+            await publicClient.waitForTransactionReceipt({
+                hash: tx.hash,
+            });
+            
+            console.log("Campaign created successfully");
             
             await refreshCampaigns();
         } catch (err) {
@@ -282,19 +327,21 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     const donate = async (pId: string, amount: string) => {
         try {
             console.log(`Donating ${amount} ETH to campaign ${pId}`);
-            const txn = await contract?.call('donateToCampaign', [pId], {
-                value: ethers.utils.parseEther(amount),
-                gasLimit: 500000 // Adding explicit gas limit
+            const tx = await donateToCampaignWrite({
+                args: [pId],
+                value: parseEther(amount),
             });
             
-            // Wait for confirmation
-            await txn.receipt;
-            console.log("Donation successful:", txn);
+            await publicClient.waitForTransactionReceipt({
+                hash: tx.hash,
+            });
+            
+            console.log("Donation successful");
             
             // Force refresh campaigns after donation
             await refreshCampaigns();
             
-            return txn;
+            return tx;
         } catch (error) {
             console.error("Error donating to campaign:", error);
             throw error;
@@ -304,12 +351,19 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
     const getDonations = async (pId: string) => {
         try {
             // Call getDonators which returns [donators[], donations[]]
-            const [donators, donations] = await contract?.call('getDonators', [pId]) || [[], []];
+            const result = await publicClient.readContract({
+                address: CONTRACT_ADDRESS as `0x${string}`,
+                abi: contractAbi,
+                functionName: "getDonators",
+                args: [pId],
+            }) as [string[], bigint[]];
+            
+            const [donators, donations] = result;
             
             // Safely map the arrays
             const parsedDonations = donators.map((donator: string, i: number) => ({
                 donator,
-                donation: ethers.utils.formatEther(donations[i]?.toString() || '0')
+                donation: formatEther(donations[i] || BigInt(0))
             }));
             
             return parsedDonations;
@@ -323,15 +377,25 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
 
     // Initial campaign load
     useEffect(() => {
-        if (contract) {
+        if (isConnected) {
             refreshCampaigns();
         }
-    }, [contract]);
+    }, [isConnected]);
+
+    // Simple connect function
+    const connect = () => {
+        wagmiConnect();
+    };
+
+    // Simple disconnect function
+    const disconnect = () => {
+        wagmiDisconnect();
+    };
 
     return (
         <StateContext.Provider value={{
             address,
-            contract,
+            contract: CONTRACT_ADDRESS,
             connect,
             disconnect,
             createCampaign: publishCampaign,
@@ -346,7 +410,8 @@ export function StateContextProvider({ children }: StateContextProviderProps) {
             getPendingCampaigns,
             approveCampaign,
             rejectCampaign,
-            refreshCampaigns // Export the refresh function
+            refreshCampaigns,
+            isConnected
         }}>
             {children}
         </StateContext.Provider>

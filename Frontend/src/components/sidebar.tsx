@@ -25,6 +25,8 @@ export function Sidebar() {
                         handleClick={() => {
                             if (link.name === 'logout') {
                                 disconnect()
+                                navigate('/')
+                                setIsActive('dashboard')
                             } else if (!link.disabled) {
                                 setIsActive(link.name)
                                 navigate(link.link)
