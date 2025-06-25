@@ -4,11 +4,15 @@ import { App } from './app'
 import './index.css'
 import { Toaster } from 'sonner'
 import { StateContextProvider } from './contexts'
-import { WagmiConfig, createConfig, sepolia } from 'wagmi'
+import { WagmiConfig, createConfig } from 'wagmi'
 import { RainbowKitProvider, getDefaultWallets, darkTheme } from '@rainbow-me/rainbowkit'
 import '@rainbow-me/rainbowkit/styles.css'
 import { arbitrumSepolia } from 'wagmi/chains'
 import { createPublicClient, http } from 'viem'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// Create a client for React Query
+const queryClient = new QueryClient();
 
 const { connectors } = getDefaultWallets({
   appName: 'CrowdFunding App',
@@ -27,14 +31,16 @@ const config = createConfig({
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
 root.render(
-  <WagmiConfig config={config}>
-    <RainbowKitProvider chains={[arbitrumSepolia]} theme={darkTheme()}>
-      <Router>
-        <StateContextProvider>
-          <App />
-        </StateContextProvider>
-      </Router>
-      <Toaster richColors />
-    </RainbowKitProvider>
-  </WagmiConfig>
+  <QueryClientProvider client={queryClient}>
+    <WagmiConfig config={config}>
+      <RainbowKitProvider chains={[arbitrumSepolia]} theme={darkTheme()}>
+        <Router>
+          <StateContextProvider>
+            <App />
+          </StateContextProvider>
+        </Router>
+        <Toaster richColors />
+      </RainbowKitProvider>
+    </WagmiConfig>
+  </QueryClientProvider>
 )
